@@ -4,7 +4,7 @@ Created on Wed Oct 26 11:30:21 2022
 
 @author: alber
 """
-
+# http://nlp.seas.harvard.edu/2018/04/03/attention.html PYTORCH
 import tensorflow as tf
 import pandas as pd
 import time
