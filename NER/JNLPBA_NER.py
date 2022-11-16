@@ -1,15 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Nov 14 10:17:38 2022
+Created on Tue Nov 15 15:56:40 2022
 
 @author: alber
 """
-# https://www.kaggle.com/code/vishakha10/ner-using-bert-model/notebook
-#!pip install transformers
-#!pip install keras
-#!pip install tensorflow
-#!pip install seqeval
-#%% Import
 import os
 import json
 import csv
@@ -27,17 +21,74 @@ from seqeval.metrics import f1_score
 from transformers import get_linear_schedule_with_warmup
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
+from nltk import pos_tag
+from nltk.tree import Tree
+from nltk.chunk import conlltags2tree
 
-
-#%% Hyperparameters
+#%% Hyperparameter
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+n_gpu = torch.cuda.device_count()
+device_name=torch.cuda.get_device_name(0)
 
 n_epochs = 3
 max_grad_norm = 1.0
 MAX_LEN = 75
 bs = 24
 
+tokenizer = BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=False) 
 
-#%% Functions
+#%%data
+train_file_path="C:/Users/alber/Bureau/Development/NLP_data/JNLPBA/train.tsv"
+data=pd.read_csv(train_file_path, sep='\t',names=["word","tag"])
+data.dropna(axis=0, inplace=True)
+data.drop(data.index[data['word'] == "-DOCSTART-"], inplace = True)
+
+#%%Preprocessing
+
+#%%%functions
+#pd.read_csv(training_file, encoding="latin1").fillna(method="ffill")
+
+#A training example is typically a sentence, with corresponding IOB tags.
+#Let's group the words and corresponding tags by sentence
+def read_data(input_file):
+    """Reads a BIO data."""
+    inpFilept = open(input_file)
+    lines = []
+    words = []
+    labels = []
+    sentence,sentencelabels=[],[]
+    for lineIdx, line in enumerate(inpFilept):
+        contents = line.splitlines()[0]
+        lineList = contents.split()
+        if len(lineList) == 0: # For blank line
+            assert len(words) == len(labels), "lineIdx: %s,  len(words)(%s) != len(labels)(%s) \n %s\n%s"%(lineIdx, len(words), len(labels), " ".join(words), " ".join(labels))
+            if len(words) != 0:
+                wordSent = " ".join(words)
+                sentence.append(str(wordSent))
+                labelSent = " ".join(labels)
+                sentencelabels.append(str(labelSent))
+                lines.append((labelSent, wordSent))
+                words = []
+                labels = []
+            else: 
+                print("Two continual empty lines detected!")
+        else:
+            words.append(lineList[0])
+            labels.append(lineList[-1])
+    if len(words) != 0:
+        wordSent = " ".join(words)
+        sentence.append(str(wordSent))
+
+        labelSent = " ".join(labels)
+        sentencelabels.append(str(labelSent))
+
+        lines.append((labelSent, wordSent))
+        words = []
+        labels = []
+
+    inpFilept.close()
+    return lines#sentence,sentencelabels
 
 class SentenceGetter(object):
 
@@ -48,14 +99,17 @@ class SentenceGetter(object):
        # agg_func = lambda s: [(w, p, t) for w, p, t in zip(s["Word"].values.tolist(),
        #                                                    s["POS"].values.tolist(),
         #                                                   s["Tag"].values.tolist())]
-        agg_func = lambda s: [(w, t) for w, t in zip(s["Word"].values.tolist(),
+        agg_func = lambda s: [(w, t) for w, t in zip(s["word"].values.tolist(),
                                                            s["tag"].values.tolist())]
-        self.grouped = self.data.groupby("Sent_ID").apply(agg_func)
+        self.grouped = self.data.groupby("sentence #").apply(agg_func)
+        print('self.grouped',self.grouped)
         self.sentences = [s for s in self.grouped]
+        print('self.sentences',self.sentences)
 
     def get_next(self):
         try:
             s = self.grouped["{}".format(self.n_sent)]
+            
             self.n_sent += 1
             return s
         except:
@@ -78,28 +132,25 @@ def tokenize_and_preserve_labels(sentence, text_labels):
         labels.extend([label] * n_subwords)
 
     return tokenized_sentence, labels
-        
-        
-def flat_accuracy(preds, labels):
-    pred_flat = np.argmax(preds, axis=2).flatten()
-    labels_flat = labels.flatten()
-    return np.sum(pred_flat == labels_flat) / len(labels_flat)
+#%%% add sentence number 
+sent=[]
+a=1
+for i in range(len(data)):
+    if  not data.word.iloc[i].endswith("."):
+        sent.append(a)
+    elif data.word.iloc[i].endswith("."):
+        sent.append(a)
+        a+=1
+        #print(i)
+data['sentence #']=sent
 
-#%% Main
-#
-
-#%%% Data
-training_file="C:/Users/alber/Bureau/Development/NLP_data/train.csv"
-data = pd.read_csv(training_file, encoding="latin1").fillna(method="ffill")
-#print(data.head(50))
-
+#%%% word tags pairs
 getter = SentenceGetter(data)
 
-sentences = [[word[0] for word in sentence] for sentence in getter.sentences]
-print(sentences[0])
 
+
+sentences = [[word[0] for word in sentence] for sentence in getter.sentences]
 labels = [[s[1] for s in sentence] for sentence in getter.sentences]
-print(labels[0])
 
 tag_values = list(set(data["tag"].values))
 tag_values.append("PAD")
@@ -107,20 +158,13 @@ tag2idx = {t: i for i, t in enumerate(tag_values)}
 #Padding is addded end of each sentence,
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-n_gpu = torch.cuda.device_count()
-device_name=torch.cuda.get_device_name(0)
-#print("device name:",device_name)
-
-
-#%%% Tokens
-tokenizer = BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=False) 
-
-
+#%%% tokens
 tokenized_texts_and_labels = [
     tokenize_and_preserve_labels(sent, labs)
     for sent, labs in zip(sentences, labels)
 ]
+
+
 
 tokenized_texts = [token_label_pair[0] for token_label_pair in tokenized_texts_and_labels]
 labels = [token_label_pair[1] for token_label_pair in tokenized_texts_and_labels]
@@ -133,11 +177,19 @@ input_ids = pad_sequences([tokenizer.convert_tokens_to_ids(txt) for txt in token
 tags = pad_sequences([[tag2idx.get(l) for l in lab] for lab in labels],
                      maxlen=MAX_LEN, value=tag2idx["PAD"], padding="post",
                      dtype="long", truncating="post")
-print(tokenized_texts)
+
 #attenation mask to ignore PAD token
 attention_masks = [[float(i != 0.0) for i in ii] for ii in input_ids]
+#%%% print pre processing
+"""
+print(getter.sentences[0])
+print(data.head())
+print(tag_values)
+print("tag2idx:",tag2idx)
+print(tokenized_texts)
+"""
+#%%% Prepare data for training
 
-#10per train and validATE
 tr_inputs, val_inputs, tr_tags, val_tags = train_test_split(input_ids, tags,
                                                             random_state=2018, test_size=0.1)
 tr_masks, val_masks, _, _ = train_test_split(attention_masks, input_ids,
@@ -160,9 +212,8 @@ valid_data = TensorDataset(val_inputs, val_masks, val_tags)
 valid_sampler = SequentialSampler(valid_data)
 valid_dataloader = DataLoader(valid_data, sampler=valid_sampler, batch_size=bs)
 
-#%%% Fine tune
-
-
+#%% Training
+#%%% Fine tune 
 
 model = BertForTokenClassification.from_pretrained(
     "bert-base-cased",
@@ -207,7 +258,8 @@ scheduler = get_linear_schedule_with_warmup(
     num_training_steps=total_steps
 )
 
-#%%  Train
+#%%% training loop
+
 
 ## Store the average loss after each epoch so we can plot them.
 loss_values, validation_loss_values = [], []
@@ -227,7 +279,7 @@ for epoch in range(n_epochs):
     # Training loop
     for batch in tqdm(train_dataloader): 
         # add batch to gpu
-        print(batch)
+        #print(batch)
         batch = tuple(t.type(torch.LongTensor).to(device) for t in batch)
         b_input_ids, b_input_mask, b_labels = batch
 
@@ -308,9 +360,9 @@ for epoch in range(n_epochs):
     print("Validation F1-Score: {}".format(f1_score(pred_tags, valid_tags)))
     print()
     print(f'epoch: {epoch+1}/{n_epochs}')
+    
 
-
-#%%% Visu 
+#%% Visu 
 
 
 
@@ -334,21 +386,9 @@ plt.legend()
 plt.show()
 
 #%% Test 
-
-test_sentence = """
-CCCVA, MANOVA, my black hen. Comments on repeated measures. Nikolsky sign page from notable contributors to the knowledge of dermatology.
-[Obesity as a concomitant cause in the complex etiology of arteriosclerosis ]. Tropical mixtures of star tree metrics.
-We study three metrics that can be realized as a mixture of two-star tree metrics.
-We prove that the only trees admitting such a decomposition are the ones coming from a tree with at most one internal edge, and whose weight satisfies certain linear inequalities.
-We also characterize the fibers of the corresponding mixture map. In addition, we discuss the general framework of tropical secant varieties and we interpret our results within this setting.
-Finally, we show that the set of tree metric ranks of metrics on $ n $ taxa is unbounded. 
-Comment: 19 pages, 5 figures. Major revision of the exposition following suggestions by the referee.
-To appear in Annals of Combinatoric Pasteurellosis in japanese quail (Coturnix coturnix japonica) caused by Pasteurella multocida multocida A:4. 
-NUTRITIONAL WELL-BEING IN THE U.S.A.Counseling professional nurses. Evaluation of transdermal penetration enhancers using a novel skin alternative . 
-A novel alternative to animal skin models was developed in order to aid in the screening of transdermal penetration enhancer . 
-The skin alternative consists of a dermal layer containing human fibroblasts dispersed in a collagen matrix and an epidermal layer of differentiated and stratified human keratinocytes.
-
 """
+test_sentence = 
+# #medical notes
 
 tokenized_sentence = tokenizer.encode(test_sentence)
 input_ids = torch.tensor([tokenized_sentence]).cuda()
@@ -369,5 +409,4 @@ for token, label_idx in zip(tokens, label_indices[0]):
         
 for token, label in zip(new_tokens, new_labels):
     print("{}\t{}".format(label, token))
-
-
+"""
