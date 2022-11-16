@@ -4,6 +4,9 @@ Created on Tue Nov 15 15:56:40 2022
 
 @author: alber
 """
+from helpers import *
+from functions import *
+
 import os
 import json
 import csv
@@ -31,7 +34,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 n_gpu = torch.cuda.device_count()
 device_name=torch.cuda.get_device_name(0)
 
-n_epochs = 3
+n_epochs = 1
 max_grad_norm = 1.0
 MAX_LEN = 75
 bs = 24
@@ -46,92 +49,7 @@ data.drop(data.index[data['word'] == "-DOCSTART-"], inplace = True)
 
 #%%Preprocessing
 
-#%%%functions
-#pd.read_csv(training_file, encoding="latin1").fillna(method="ffill")
 
-#A training example is typically a sentence, with corresponding IOB tags.
-#Let's group the words and corresponding tags by sentence
-def read_data(input_file):
-    """Reads a BIO data."""
-    inpFilept = open(input_file)
-    lines = []
-    words = []
-    labels = []
-    sentence,sentencelabels=[],[]
-    for lineIdx, line in enumerate(inpFilept):
-        contents = line.splitlines()[0]
-        lineList = contents.split()
-        if len(lineList) == 0: # For blank line
-            assert len(words) == len(labels), "lineIdx: %s,  len(words)(%s) != len(labels)(%s) \n %s\n%s"%(lineIdx, len(words), len(labels), " ".join(words), " ".join(labels))
-            if len(words) != 0:
-                wordSent = " ".join(words)
-                sentence.append(str(wordSent))
-                labelSent = " ".join(labels)
-                sentencelabels.append(str(labelSent))
-                lines.append((labelSent, wordSent))
-                words = []
-                labels = []
-            else: 
-                print("Two continual empty lines detected!")
-        else:
-            words.append(lineList[0])
-            labels.append(lineList[-1])
-    if len(words) != 0:
-        wordSent = " ".join(words)
-        sentence.append(str(wordSent))
-
-        labelSent = " ".join(labels)
-        sentencelabels.append(str(labelSent))
-
-        lines.append((labelSent, wordSent))
-        words = []
-        labels = []
-
-    inpFilept.close()
-    return lines#sentence,sentencelabels
-
-class SentenceGetter(object):
-
-    def __init__(self, data):
-        self.n_sent = 1
-        self.data = data
-        self.empty = False
-       # agg_func = lambda s: [(w, p, t) for w, p, t in zip(s["Word"].values.tolist(),
-       #                                                    s["POS"].values.tolist(),
-        #                                                   s["Tag"].values.tolist())]
-        agg_func = lambda s: [(w, t) for w, t in zip(s["word"].values.tolist(),
-                                                           s["tag"].values.tolist())]
-        self.grouped = self.data.groupby("sentence #").apply(agg_func)
-        print('self.grouped',self.grouped)
-        self.sentences = [s for s in self.grouped]
-        print('self.sentences',self.sentences)
-
-    def get_next(self):
-        try:
-            s = self.grouped["{}".format(self.n_sent)]
-            
-            self.n_sent += 1
-            return s
-        except:
-            return None
-        
-def tokenize_and_preserve_labels(sentence, text_labels):
-    tokenized_sentence = []
-    labels = []
-
-    for word, label in zip(sentence, text_labels):
-
-        # Tokenize the word and count # of subwords the word is broken into
-        tokenized_word = tokenizer.tokenize(word)
-        n_subwords = len(tokenized_word)
-
-        # Add the tokenized word to the final tokenized word list
-        tokenized_sentence.extend(tokenized_word)
-
-        # Add the same label to the new list of labels `n_subwords` times
-        labels.extend([label] * n_subwords)
-
-    return tokenized_sentence, labels
 #%%% add sentence number 
 sent=[]
 a=1
@@ -160,7 +78,7 @@ tag2idx = {t: i for i, t in enumerate(tag_values)}
 
 #%%% tokens
 tokenized_texts_and_labels = [
-    tokenize_and_preserve_labels(sent, labs)
+    tokenize_and_preserve_labels(sent, labs,tokenizer)
     for sent, labs in zip(sentences, labels)
 ]
 
@@ -188,6 +106,8 @@ print(tag_values)
 print("tag2idx:",tag2idx)
 print(tokenized_texts)
 """
+print(tag_values)
+
 #%%% Prepare data for training
 
 tr_inputs, val_inputs, tr_tags, val_tags = train_test_split(input_ids, tags,
@@ -266,6 +186,8 @@ loss_values, validation_loss_values = [], []
 #print(torch.cuda.current_device())
 
 for epoch in range(n_epochs):
+    print(f'epoch: {epoch+1}/{n_epochs}')
+
     # ========================================
     #               Training
     # ========================================
@@ -357,9 +279,10 @@ for epoch in range(n_epochs):
                                  for p_i, l_i in zip(p, l) if tag_values[l_i] != "PAD"]
     valid_tags = [tag_values[l_i] for l in true_labels
                                   for l_i in l if tag_values[l_i] != "PAD"]
-    print("Validation F1-Score: {}".format(f1_score(pred_tags, valid_tags)))
+    #print("Validation F1-Score: {}".format(f1_score(pred_tags, valid_tags)))
     print()
-    print(f'epoch: {epoch+1}/{n_epochs}')
+    save_transformer(model)
+
     
 
 #%% Visu 
@@ -384,29 +307,3 @@ plt.ylabel("Loss")
 plt.legend()
 
 plt.show()
-
-#%% Test 
-"""
-test_sentence = 
-# #medical notes
-
-tokenized_sentence = tokenizer.encode(test_sentence)
-input_ids = torch.tensor([tokenized_sentence]).cuda()
-
-with torch.no_grad():
-    output = model(input_ids)
-label_indices = np.argmax(output[0].to('cpu').numpy(), axis=2)
-
-# join bpe split tokens
-tokens = tokenizer.convert_ids_to_tokens(input_ids.to('cpu').numpy()[0])
-new_tokens, new_labels = [], []
-for token, label_idx in zip(tokens, label_indices[0]):
-    if token.startswith("##"):
-        new_tokens[-1] = new_tokens[-1] + token[2:]
-    else:
-        new_labels.append(tag_values[label_idx])
-        new_tokens.append(token)
-        
-for token, label in zip(new_tokens, new_labels):
-    print("{}\t{}".format(label, token))
-"""
