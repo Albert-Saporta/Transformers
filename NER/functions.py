@@ -4,6 +4,7 @@ Created on Wed Nov 16 15:44:20 2022
 
 @author: alber
 """
+import numpy as np
 #%% Pre processing
 
 class SentenceGetter(object):
@@ -18,9 +19,7 @@ class SentenceGetter(object):
         agg_func = lambda s: [(w, t) for w, t in zip(s["word"].values.tolist(),
                                                            s["tag"].values.tolist())]
         self.grouped = self.data.groupby("sentence #").apply(agg_func)
-        print('self.grouped',self.grouped)
         self.sentences = [s for s in self.grouped]
-        print('self.sentences',self.sentences)
 
     def get_next(self):
         try:

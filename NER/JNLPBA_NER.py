@@ -15,9 +15,10 @@ import numpy as np
 from tqdm import tqdm, trange
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
-from transformers import BertTokenizer, BertConfig
 import transformers
-from transformers import BertForTokenClassification, AdamW
+
+from transformers import BertTokenizer, BertConfig,AutoTokenizer, AutoModel
+from transformers import BertForTokenClassification, AdamW, BertForSequenceClassification
 from keras_preprocessing.sequence import pad_sequences
 from sklearn.model_selection import train_test_split
 from seqeval.metrics import f1_score
@@ -34,21 +35,31 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 n_gpu = torch.cuda.device_count()
 device_name=torch.cuda.get_device_name(0)
 
-n_epochs = 1
+n_epochs = 5
 max_grad_norm = 1.0
 MAX_LEN = 75
 bs = 24
-
+"""
 tokenizer = BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=False) 
+model = BertForTokenClassification.from_pretrained(
+    "bert-base-cased",
+    num_labels=len(tag2idx),
+    output_attentions = False,
+    output_hidden_states = False
+)
+"""
+tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
+model = BertForTokenClassification.from_pretrained("emilyalsentzer/Bio_ClinicalBERT",   
+    num_labels=12,
+    output_attentions = False,
+    output_hidden_states = False)
 
 #%%data
 train_file_path="C:/Users/alber/Bureau/Development/NLP_data/JNLPBA/train.tsv"
 data=pd.read_csv(train_file_path, sep='\t',names=["word","tag"])
 data.dropna(axis=0, inplace=True)
 data.drop(data.index[data['word'] == "-DOCSTART-"], inplace = True)
-
 #%%Preprocessing
-
 
 #%%% add sentence number 
 sent=[]
@@ -73,6 +84,7 @@ labels = [[s[1] for s in sentence] for sentence in getter.sentences]
 tag_values = list(set(data["tag"].values))
 tag_values.append("PAD")
 tag2idx = {t: i for i, t in enumerate(tag_values)}
+print(tag2idx)
 #Padding is addded end of each sentence,
 
 
@@ -106,7 +118,6 @@ print(tag_values)
 print("tag2idx:",tag2idx)
 print(tokenized_texts)
 """
-print(tag_values)
 
 #%%% Prepare data for training
 
@@ -135,12 +146,7 @@ valid_dataloader = DataLoader(valid_data, sampler=valid_sampler, batch_size=bs)
 #%% Training
 #%%% Fine tune 
 
-model = BertForTokenClassification.from_pretrained(
-    "bert-base-cased",
-    num_labels=len(tag2idx),
-    output_attentions = False,
-    output_hidden_states = False
-)
+
 
 model.cuda();
 
