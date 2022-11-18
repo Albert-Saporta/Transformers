@@ -29,13 +29,14 @@ import pandas as pd
 from nltk import pos_tag
 from nltk.tree import Tree
 from nltk.chunk import conlltags2tree
-
+# https://github.com/huggingface/transformers/blob/main/examples/pytorch/token-classification/run_ner.py
+#https://www.pragnakalp.com/named-entity-recognition-ner-using-biobert-demo/
 #%% Hyperparameter
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 n_gpu = torch.cuda.device_count()
 device_name=torch.cuda.get_device_name(0)
 
-n_epochs = 5
+n_epochs = 15
 max_grad_norm = 1.0
 MAX_LEN = 75
 bs = 24
@@ -82,10 +83,10 @@ sentences = [[word[0] for word in sentence] for sentence in getter.sentences]
 labels = [[s[1] for s in sentence] for sentence in getter.sentences]
 
 tag_values = list(set(data["tag"].values))
-tag_values.append("PAD")
+#tag_values.append("PAD")
 tag2idx = {t: i for i, t in enumerate(tag_values)}
-print(tag2idx)
-#Padding is addded end of each sentence,
+tag2idx["PAD"]=0
+#Padding is addded end of each sentence,!! 0 is for PAD??
 
 
 #%%% tokens
@@ -99,7 +100,7 @@ tokenized_texts_and_labels = [
 tokenized_texts = [token_label_pair[0] for token_label_pair in tokenized_texts_and_labels]
 labels = [token_label_pair[1] for token_label_pair in tokenized_texts_and_labels]
 
-#cut and pad to the desied length 75 bcz ab no of token increase ho gya
+#cut and pad to the desied length 75 
 input_ids = pad_sequences([tokenizer.convert_tokens_to_ids(txt) for txt in tokenized_texts],
                           maxlen=MAX_LEN, dtype="long", value=0.0,
                           truncating="post", padding="post")
@@ -117,7 +118,14 @@ print(data.head())
 print(tag_values)
 print("tag2idx:",tag2idx)
 print(tokenized_texts)
+print("attention_masks:",attention_masks)
+
 """
+print(tag_values)
+
+print("tag2idx[PAD]:",tags[0],input_ids[0])
+print("sentence/lab:",labels[0],tokenized_texts[0])
+
 
 #%%% Prepare data for training
 
@@ -231,7 +239,7 @@ for epoch in range(n_epochs):
         # update parameters
         optimizer.step()
         # Update the learning rate.
-        scheduler.step()
+        #scheduler.step()
 
     # Calculate the average loss over the training data.
     avg_train_loss = total_loss / len(train_dataloader)
@@ -313,3 +321,28 @@ plt.ylabel("Loss")
 plt.legend()
 
 plt.show()
+
+#%% eval
+
+test_sentence = "The study demonstrated a decreased level of glucocorticoid	receptor ."
+
+tokenized_sentence = tokenizer.encode(test_sentence)
+input_ids = torch.tensor([tokenized_sentence]).cuda()
+
+with torch.no_grad():
+    output = model(input_ids)
+label_indices = np.argmax(output[0].to('cpu').numpy(), axis=2)
+# join bpe split tokens
+tokens = tokenizer.convert_ids_to_tokens(input_ids.to('cpu').numpy()[0])
+print(label_indices)
+
+new_tokens, new_labels = [], []
+for token, label_idx in zip(tokens, label_indices[0]):
+    if token.startswith("##"):
+        new_tokens[-1] = new_tokens[-1] + token[2:]
+    else:
+        new_labels.append(tag_values[label_idx])
+        new_tokens.append(token)
+        
+for token, label in zip(new_tokens, new_labels):
+    print("{}\t{}".format(label, token))

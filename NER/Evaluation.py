@@ -6,6 +6,7 @@ Created on Wed Nov 16 15:42:21 2022
 """
 
 from helpers import *
+from functions import *
 
 import os
 import json
@@ -31,19 +32,43 @@ from nltk.tree import Tree
 from nltk.chunk import conlltags2tree
 from transformers import pipeline
 
+# The .from_pretrained methods guarantee that only one local process can concurrently
+# download model & vocab.
+#%% test data
+test_file_path="C:/Users/alber/Bureau/Development/NLP_data/JNLPBA/test.tsv"
+data=pd.read_csv(test_file_path, sep='\t',names=["word","tag"])
+data.dropna(axis=0, inplace=True)
+data.drop(data.index[data['word'] == "-DOCSTART-"], inplace = True)
+
+sent=[]
+a=1
+for i in range(len(data)):
+    if  not data.word.iloc[i].endswith("."):
+        sent.append(a)
+    elif data.word.iloc[i].endswith("."):
+        sent.append(a)
+        a+=1
+        #print(i)
+data['sentence #']=sent
+
+agg_func = lambda s: (" ".join(w for w in s["word"]))
+
+sentences=data.groupby("sentence #").apply(agg_func)
+#print(sentences.iloc[0])
+
 #%%
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-model = BertForTokenClassification.from_pretrained(
+modelss = BertForTokenClassification.from_pretrained(
     "emilyalsentzer/Bio_ClinicalBERT",
     num_labels=12,
     output_attentions = False,
     output_hidden_states = False
 ).to(device)
 
-#model=load_transformer(modelss,"JNLPBA_BERT.pth",device)
+model=load_transformer(modelss,"JNLPBA_BERT.pth",device)
 tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
 
 """ ??? """
@@ -53,8 +78,9 @@ config = BertConfig(output_config_file)
         model.load_state_dict(torch.load(output_model_file))
 """
 """ """
+tag_values=['B-cell_type', 'B-cell_line', 'I-cell_line', 'I-DNA', 'B-RNA', 'B-DNA', 'O', 'I-cell_type', 'I-protein', 'B-protein', 'I-RNA']
 #%% Test 
-test_sentence = "The study demonstrated a decreased level of glucocorticoid	receptor"
+test_sentence = sentences.iloc[10]#"Peripheral blood lymphocytes ."#The study demonstrated a decreased level of glucocorticoid	receptor . The	 study	 demonstrated	 a	 decreased	 level of glucocorticoid receptors	 (GR) in peripheral blood ." #	I-cell_type lymphocytes	I-cell_type from	O hypercholesterolemic	O subjects	O ,	O and	O an	O elevated	O level	O in	O patients	O with	O acute	O myocardial	O infarction	O .	O"
 
 tokenized_sentence = tokenizer.encode(test_sentence)
 input_ids = torch.tensor([tokenized_sentence]).cuda()
