@@ -40,15 +40,7 @@ n_epochs = 15
 max_grad_norm = 1.0
 MAX_LEN = 75
 bs = 24
-"""
-tokenizer = BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=False) 
-model = BertForTokenClassification.from_pretrained(
-    "bert-base-cased",
-    num_labels=len(tag2idx),
-    output_attentions = False,
-    output_hidden_states = False
-)
-"""
+pth_file_name="JNLPBA_BERT2""
 tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
 model = BertForTokenClassification.from_pretrained("emilyalsentzer/Bio_ClinicalBERT",   
     num_labels=12,

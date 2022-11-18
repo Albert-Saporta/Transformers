@@ -21,7 +21,7 @@ import pickle
 #%% Save and load
 
 def save_transformer(model):#ajouter num label, tokeniser,tag_values
-    torch.save(model.state_dict(), 'C:/Users/alber/Bureau/Development/training_results/JNLPBA_BERT2.pth')
+    torch.save(model.state_dict(), f'C:/Users/alber/Bureau/Development/training_results/{pth_file_name}.pth')
     """
     torch.save(
     dict(
