@@ -36,6 +36,8 @@ from transformers import pipeline
 # download model & vocab.
 #%% test data
 test_file_path="C:/Users/alber/Bureau/Development/NLP_data/JNLPBA/test.tsv"
+pth_file_path="C:/Users/alber/Bureau/Development/training_results/JNLPBA_BERT.pth"
+
 data=pd.read_csv(test_file_path, sep='\t',names=["word","tag"])
 data.dropna(axis=0, inplace=True)
 data.drop(data.index[data['word'] == "-DOCSTART-"], inplace = True)
@@ -68,7 +70,7 @@ modelss = BertForTokenClassification.from_pretrained(
     output_hidden_states = False
 ).to(device)
 
-model=load_transformer(modelss,"JNLPBA_BERT.pth",device)
+model=load_transformer(modelss,pth_file_path,device)
 tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
 
 """ ??? """
@@ -80,7 +82,7 @@ config = BertConfig(output_config_file)
 """ """
 tag_values=['B-cell_type', 'B-cell_line', 'I-cell_line', 'I-DNA', 'B-RNA', 'B-DNA', 'O', 'I-cell_type', 'I-protein', 'B-protein', 'I-RNA']
 #%% Test 
-test_sentence = sentences.iloc[10]#"Peripheral blood lymphocytes ."#The study demonstrated a decreased level of glucocorticoid	receptor . The	 study	 demonstrated	 a	 decreased	 level of glucocorticoid receptors	 (GR) in peripheral blood ." #	I-cell_type lymphocytes	I-cell_type from	O hypercholesterolemic	O subjects	O ,	O and	O an	O elevated	O level	O in	O patients	O with	O acute	O myocardial	O infarction	O .	O"
+test_sentence = sentences.iloc[2]#"Peripheral blood lymphocytes ."#The study demonstrated a decreased level of glucocorticoid	receptor . The	 study	 demonstrated	 a	 decreased	 level of glucocorticoid receptors	 (GR) in peripheral blood ." #	I-cell_type lymphocytes	I-cell_type from	O hypercholesterolemic	O subjects	O ,	O and	O an	O elevated	O level	O in	O patients	O with	O acute	O myocardial	O infarction	O .	O"
 
 tokenized_sentence = tokenizer.encode(test_sentence)
 input_ids = torch.tensor([tokenized_sentence]).cuda()
