@@ -4,8 +4,8 @@ Created on Tue Nov 15 15:56:40 2022
 
 @author: alber
 """
-from helpers import *
-from functions import *
+from modules.functions import *
+
 
 import os
 import json
@@ -17,8 +17,8 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 import transformers
 
-from transformers import BertTokenizer, BertConfig,AutoTokenizer, AutoModel
-from transformers import BertForTokenClassification, AdamW, BertForSequenceClassification
+from transformers import BertTokenizer, BertConfig,AutoTokenizer, AutoModel,CamembertTokenizer,CamembertTokenizerFast
+from transformers import BertForTokenClassification, AdamW, BertForSequenceClassification,RobertaForQuestionAnswering
 from keras_preprocessing.sequence import pad_sequences
 from sklearn.model_selection import train_test_split
 from seqeval.metrics import f1_score
@@ -38,7 +38,12 @@ device_name=torch.cuda.get_device_name(0)
 n_epochs = 15
 max_grad_norm = 1.0
 MAX_LEN = 75
-bs = 24
+bs = 4
+
+tokenizer = CamembertTokenizer.from_pretrained("camembert-base")
+camembert = CamembertModel.from_pretrained("camembert-base")
+model = BertForQuestionAnswering.from_pretrained("camembert-base") #?BertForQuestionAnswering??
+
 
 tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
 model = BertForTokenClassification.from_pretrained("emilyalsentzer/Bio_ClinicalBERT",   
@@ -46,24 +51,21 @@ model = BertForTokenClassification.from_pretrained("emilyalsentzer/Bio_ClinicalB
     output_attentions = False,
     output_hidden_states = False)
 
-#%%data
-train_file_path="C:/Users/alber/Bureau/Development/NLP_data/JNLPBA/train.tsv"
-data=pd.read_csv(train_file_path, sep='\t',names=["word","tag"])
-data.dropna(axis=0, inplace=True)
-data.drop(data.index[data['word'] == "-DOCSTART-"], inplace = True)
-#%%Preprocessing
+#%% data Preprocessing
+data_path="C:/Users/alber/Bureau/Development/NLP_data/QA/PIAF/piaf_v12.json"
+"""
+with open(data_path, 'rb') as f:
+  squad = json.load(f)
+  
+print(squad['data'][0].keys())
+print(squad['data'][186]['paragraphs'][0]['context'])
+"""
 
-#%%% add sentence number 
-sent=[]
-a=1
-for i in range(len(data)):
-    if  not data.word.iloc[i].endswith("."):
-        sent.append(a)
-    elif data.word.iloc[i].endswith("."):
-        sent.append(a)
-        a+=1
-        #print(i)
-data['sentence #']=sent
+
+#%%% contexts, questions, answers
+train_contexts, train_questions, train_answers = read_data(data_path)
+
+print(train_questions[0],train_answers[0])
 
 #%%% word tags pairs
 getter = SentenceGetter(data)
