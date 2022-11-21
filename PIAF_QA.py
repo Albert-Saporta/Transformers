@@ -5,7 +5,6 @@ Created on Tue Nov 15 15:56:40 2022
 @author: alber
 """
 from modules import *
-#from modules.functions import *
 
 
 import os
@@ -36,7 +35,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 n_gpu = torch.cuda.device_count()
 device_name=torch.cuda.get_device_name(0)
 
-n_epochs = 5
+n_epochs =5
 max_grad_norm = 1.0
 MAX_LEN = 75
 bs = 4
@@ -77,8 +76,10 @@ print(train_answers[-10000])
 
 #%%% tokens
 train_encodings = tokenizer(train_contexts, train_questions, truncation=True, padding=True)
-print(train_encodings.keys())
 no_of_encodings = len(train_encodings['input_ids'])
+
+print(train_encodings.keys())
+
 print(f'We have {no_of_encodings} context-question pairs')
 #!! pas =1?? pas 0?
 print(train_encodings['input_ids'][0])
@@ -92,28 +93,21 @@ print(train_encodings['start_positions'][:10])
 
 #%%% print pre processing
 """
-print(getter.sentences[0])
-print(data.head())
-print(tag_values)
-print("tag2idx:",tag2idx)
-print(tokenized_texts)
-print("attention_masks:",attention_masks)
-
+print(train_encodings)
 """
-
 
 
 #%%% Prepare data for training
-train_dataset = PIAF_SQuAD_Dataset(train_encodings)
+dataset = PIAF_SQuAD_Dataset(train_encodings)
+split_dat,split_dat2=train_test_split(dataset,test_size=0.01)
+train_dataset, val_dataset  = train_test_split(split_dat2,test_size=0.1)
 
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-"""
+train_loader = DataLoader(train_dataset, batch_size=bs,pin_memory=True, shuffle=True)
+valid_loader = DataLoader(val_dataset, batch_size=bs,pin_memory=True, shuffle=True)
 
-tr_inputs, val_inputs, tr_tags, val_tags = train_test_split(input_ids, tags,
-                                                            random_state=2018, test_size=0.1)
-tr_masks, val_masks, _, _ = train_test_split(attention_masks, input_ids,
-                                             random_state=2018, test_size=0.1)  
-"""
+
+ 
+
 
 
 #%% Training
@@ -121,32 +115,68 @@ tr_masks, val_masks, _, _ = train_test_split(attention_masks, input_ids,
 
 
 #%%% training loop
-
+print("")
 model.to(device)
 model.train()
 loss_values, validation_loss_values = [], []
 
 for epoch in range(n_epochs):
     
-  # Put the model into training mode.
-  model.train()
-  # Reset the total loss for this epoch.
-  total_loss = 0
-  loop = tqdm(train_loader, leave=True)
-  for batch in loop:
-    optim.zero_grad()
-    input_ids = batch['input_ids'].to(device)
-    attention_mask = batch['attention_mask'].to(device)
-    start_positions = batch['start_positions'].to(device)
-    end_positions = batch['end_positions'].to(device)
-    outputs = model(input_ids, attention_mask=attention_mask, start_positions=start_positions, end_positions=end_positions)
-    loss = outputs[0]
-    loss.backward()
-    optim.step()
+    # ========================================
+    #               Training
+    # ========================================
+    # Perform one full pass over the training set.
+    # Put the model into training mode.
+    model.train()
+    # Reset the total loss for this epoch.
+    total_loss = 0
+    loop = tqdm(train_loader, leave=True)
+    for batch in loop:
+      optim.zero_grad()
+      input_ids = batch['input_ids'].to(device)
+      attention_mask = batch['attention_mask'].to(device)
+      start_positions = batch['start_positions'].to(device)
+      end_positions = batch['end_positions'].to(device)
+      outputs = model(input_ids, attention_mask=attention_mask, start_positions=start_positions, end_positions=end_positions)
+      loss = outputs[0]
+      loss.backward()
+      optim.step()
+  
+      loop.set_description(f'Epoch {epoch+1}/{n_epochs}')
+      loop.set_postfix(loss=loss.item())
+      save_transformer(model,pth_file_name)
+      
+    # ========================================
+    #               Validation
+    # ========================================
+    # After the completion of each training epoch, measure our performance on
+    # our validation set.
+    
+    model.eval()
 
-    loop.set_description(f'Epoch {epoch+1}')
-    loop.set_postfix(loss=loss.item())
-    save_transformer(model,pth_file_name)
+    acc = []
+    
+    for batch in tqdm(valid_loader):
+      with torch.no_grad():
+        input_ids = batch['input_ids'].to(device)
+        attention_mask = batch['attention_mask'].to(device)
+        start_true = batch['start_positions'].to(device)
+        end_true = batch['end_positions'].to(device)
+        
+        outputs = model(input_ids, attention_mask=attention_mask)
+    
+        start_pred = torch.argmax(outputs['start_logits'], dim=1)
+        end_pred = torch.argmax(outputs['end_logits'], dim=1)
+    
+        acc.append(((start_pred == start_true).sum()/len(start_pred)).item())
+        acc.append(((end_pred == end_true).sum()/len(end_pred)).item())
+    
+    acc = sum(acc)/len(acc)
+    
+    print("\n\nT/P\tanswer_start\tanswer_end\n")
+    for i in range(len(start_true)):
+      print(f"true\t{start_true[i]}\t{end_true[i]}\n"
+            f"pred\t{start_pred[i]}\t{end_pred[i]}\n")
 
 
 
@@ -178,3 +208,76 @@ plt.legend()
 plt.show()
 """
 
+#%% evaluation
+
+def get_prediction(context, question):
+  inputs = tokenizer.encode_plus(question, context, return_tensors='pt').to(device)
+  outputs = model(**inputs)
+  
+  answer_start = torch.argmax(outputs[0])  
+  answer_end = torch.argmax(outputs[1]) + 1 
+  
+  answer = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(inputs['input_ids'][0][answer_start:answer_end]))
+  
+  return answer
+
+def normalize_text(s):
+  """Removing articles and punctuation, and standardizing whitespace are all typical text processing steps."""
+  import string, re
+  def remove_articles(text):
+    regex = re.compile(r"\b(a|an|the)\b", re.UNICODE)
+    return re.sub(regex, " ", text)
+  def white_space_fix(text):
+    return " ".join(text.split())
+  def remove_punc(text):
+    exclude = set(string.punctuation)
+    return "".join(ch for ch in text if ch not in exclude)
+  def lower(text):
+    return text.lower()
+
+  return white_space_fix(remove_articles(remove_punc(lower(s))))
+
+def exact_match(prediction, truth):
+    return bool(normalize_text(prediction) == normalize_text(truth))
+
+def compute_f1(prediction, truth):
+  pred_tokens = normalize_text(prediction).split()
+  truth_tokens = normalize_text(truth).split()
+  
+  # if either the prediction or the truth is no-answer then f1 = 1 if they agree, 0 otherwise
+  if len(pred_tokens) == 0 or len(truth_tokens) == 0:
+    return int(pred_tokens == truth_tokens)
+  
+  common_tokens = set(pred_tokens) & set(truth_tokens)
+  
+  # if there are no common tokens then f1 = 0
+  if len(common_tokens) == 0:
+    return 0
+  
+  prec = len(common_tokens) / len(pred_tokens)
+  rec = len(common_tokens) / len(truth_tokens)
+  
+  return round(2 * (prec * rec) / (prec + rec), 2)
+  
+def question_answer(context, question,answer):
+  prediction = get_prediction(context,question)
+  em_score = exact_match(prediction, answer)
+  f1_score = compute_f1(prediction, answer)
+
+  print(f'Question: {question}')
+  print(f'Prediction: {prediction}')
+  print(f'True Answer: {answer}')
+  print(f'Exact match: {em_score}')
+  print(f'F1 score: {f1_score}\n')
+  
+#%%%
+context ="Claude Monet, né le 14 novembre 1840 à Paris et mort le 5 décembre 1926 à Giverny, est un peintre français et l’un des fondateurs de l'impressionnisme."
+
+
+
+questions = ["Qui est Claude Monet?"]
+
+answers = ["Peintre ."]
+
+for question, answer in zip(questions, answers):
+  question_answer(context, question, answer)

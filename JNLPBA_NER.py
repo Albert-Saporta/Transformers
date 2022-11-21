@@ -4,8 +4,8 @@ Created on Tue Nov 15 15:56:40 2022
 
 @author: alber
 """
-from helpers import *
-from functions import *
+from modules import *
+
 
 import os
 import json
@@ -40,7 +40,7 @@ n_epochs = 15
 max_grad_norm = 1.0
 MAX_LEN = 75
 bs = 24
-pth_file_name="JNLPBA_BERT2""
+pth_file_name="JNLPBA_BERT2"
 tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
 model = BertForTokenClassification.from_pretrained("emilyalsentzer/Bio_ClinicalBERT",   
     num_labels=12,
@@ -48,7 +48,7 @@ model = BertForTokenClassification.from_pretrained("emilyalsentzer/Bio_ClinicalB
     output_hidden_states = False)
 
 #%%data
-train_file_path="C:/Users/alber/Bureau/Development/NLP_data/JNLPBA/train.tsv"
+train_file_path="C:/Users/alber/Bureau/Development/NLP_data/NER/JNLPBA/train.tsv"
 data=pd.read_csv(train_file_path, sep='\t',names=["word","tag"])
 data.dropna(axis=0, inplace=True)
 data.drop(data.index[data['word'] == "-DOCSTART-"], inplace = True)
@@ -192,7 +192,6 @@ loss_values, validation_loss_values = [], []
 #print(torch.cuda.current_device())
 
 for epoch in range(n_epochs):
-    print(f'epoch: {epoch+1}/{n_epochs}')
 
     # ========================================
     #               Training
@@ -203,9 +202,10 @@ for epoch in range(n_epochs):
     model.train()
     # Reset the total loss for this epoch.
     total_loss = 0
+    loop = tqdm(train_dataloader, leave=True)
 
     # Training loop
-    for batch in tqdm(train_dataloader): 
+    for batch in loop: 
         # add batch to gpu
         #print(batch)
         batch = tuple(t.type(torch.LongTensor).to(device) for t in batch)
@@ -232,7 +232,8 @@ for epoch in range(n_epochs):
         optimizer.step()
         # Update the learning rate.
         #scheduler.step()
-
+        loop.set_description(f'Epoch {epoch+1}/{n_epochs}')
+        loop.set_postfix(loss=loss.item())
     # Calculate the average loss over the training data.
     avg_train_loss = total_loss / len(train_dataloader)
     print("Average train loss: {}".format(avg_train_loss))
