@@ -103,12 +103,17 @@ def question_answer(context, question,answer):
 
 
 context_salarié="Le Ministère de la Jeunesse et des Sports estime à 100 000 (58 % d'hommes pour 42 % de femmes) le nombre de salariés travaillant pour le secteur sportif en France pour quelque 20 000 employeurs."
-questions_salarié = ["Combien de personnes travaillent au ministère des sports?","Combien d'employeurs?"]
-answers_salarié = ["100 000","20 000"]
+questions_salarié = ["Quel ministère?","Combien de personnes travaillent au ministère des sports?","Combien d'employeurs?"]
+answers_salarié = ["Ministère de la Jeunesse et des Sports","100 000","20 000"]
 
 context_dépenses="Les dépenses des ménages représentent plus de 50 % de ces montants (14,2 milliards d'euros en 2003 et 12 milliards d'euros en 2019), contre 7,9 milliards d'euros pour les collectivités locales, 3,2 pour l'État, et 2,2 pour les entreprises. Parmi les dépenses sportives des ménages en 2003, 3,7 milliards sont consacrés aux vêtements de sport et chaussures, 2 aux biens durables, 2,7 aux autres biens et 5,8 aux services."
 questions_dépenses = ["Quel montant en 2003?","Quel montant en 2019?"]
-answers_dépenses = ["14,2 milliards d'euros","12 milliards"]
+answers_dépenses = ["14,2 milliards d'euros","12 milliards d'euros"]
+
+context3="Jakob Bohme est né le 8 mars 1575. Ses parents jouissent d'une relative aisance grâce à la carrière du grand-père, Ambroise Bohme,  et d'un certain niveau de culture. Aussi envoient-ils leur fils à l'école, où il apprend à lire, écrire et compter, ainsi que des rudiments de latin; comme sa constitution fragile l'empêche de travailler la terre."
+questions3= ["Qui est de constitution fragile ?", "Qui est le grand-père de Jakob?","Les parents de Jakob sont ils riches?"]
+answers3=["Jakob Bohme","Ambroise Böhme","relative aisance"]
+
 
 #%%% context
 context,questions,answers=context_salarié,questions_salarié,answers_salarié
@@ -116,5 +121,10 @@ for question, answer in zip(questions, answers):
   question_answer(context, question, answer)
 
 context,questions,answers=context_dépenses,questions_dépenses,answers_dépenses
+for question, answer in zip(questions, answers):
+  question_answer(context, question, answer)
+
+# does not work with ö
+context,questions,answers=context3,questions3,answers3
 for question, answer in zip(questions, answers):
   question_answer(context, question, answer)

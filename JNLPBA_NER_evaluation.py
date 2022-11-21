@@ -5,8 +5,8 @@ Created on Wed Nov 16 15:42:21 2022
 @author: alber
 """
 
-from helpers import *
-from functions import *
+from modules import *
+
 
 import os
 import json
@@ -35,7 +35,7 @@ from transformers import pipeline
 # The .from_pretrained methods guarantee that only one local process can concurrently
 # download model & vocab.
 #%% test data
-test_file_path="C:/Users/alber/Bureau/Development/NLP_data/JNLPBA/test.tsv"
+test_file_path="C:/Users/alber/Bureau/Development/NLP_data/NER/JNLPBA/test.tsv"
 pth_file_path="C:/Users/alber/Bureau/Development/training_results/JNLPBA_BERT.pth"
 
 data=pd.read_csv(test_file_path, sep='\t',names=["word","tag"])
