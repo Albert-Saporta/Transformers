@@ -73,17 +73,10 @@ modelss = BertForTokenClassification.from_pretrained(
 model=load_transformer(modelss,pth_file_path,device)
 tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
 
-""" ??? """
-"""
-config = BertConfig(output_config_file)
-        model = BertForSequenceClassification(config, num_labels=num_labels)
-        model.load_state_dict(torch.load(output_model_file))
-"""
-""" """
+
 tag_values=['B-cell_type', 'B-cell_line', 'I-cell_line', 'I-DNA', 'B-RNA', 'B-DNA', 'O', 'I-cell_type', 'I-protein', 'B-protein', 'I-RNA']
 #%% Test 
-test_sentence = sentences.iloc[2]#"Peripheral blood lymphocytes ."#The study demonstrated a decreased level of glucocorticoid	receptor . The	 study	 demonstrated	 a	 decreased	 level of glucocorticoid receptors	 (GR) in peripheral blood ." #	I-cell_type lymphocytes	I-cell_type from	O hypercholesterolemic	O subjects	O ,	O and	O an	O elevated	O level	O in	O patients	O with	O acute	O myocardial	O infarction	O .	O"
-
+test_sentence = sentences.iloc[2]
 tokenized_sentence = tokenizer.encode(test_sentence)
 input_ids = torch.tensor([tokenized_sentence]).cuda()
 
@@ -92,7 +85,6 @@ with torch.no_grad():
 label_indices = np.argmax(output[0].to('cpu').numpy(), axis=2)
 # join bpe split tokens
 tokens = tokenizer.convert_ids_to_tokens(input_ids.to('cpu').numpy()[0])
-print(label_indices)
 
 new_tokens, new_labels = [], []
 for token, label_idx in zip(tokens, label_indices[0]):
@@ -101,6 +93,7 @@ for token, label_idx in zip(tokens, label_indices[0]):
     else:
         new_labels.append(tag_values[label_idx])
         new_tokens.append(token)
-        
-for token, label in zip(new_tokens, new_labels):
+for token, label in zip(new_tokens[1:-1], new_labels[1:-1]):
     print("{}\t{}".format(label, token))
+ 
+    

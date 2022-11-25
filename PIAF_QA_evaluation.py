@@ -32,7 +32,7 @@ from nltk.chunk import conlltags2tree
 #%% Load model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-pth_file_path="C:/Users/alber/Bureau/Development/training_results/piaf.pth"
+pth_file_path="C:/Users/alber/Bureau/Development/DeepLearning/training_results/piaf.pth"
 tokenizer = CamembertTokenizerFast.from_pretrained("camembert-base")
 transfo = RobertaForQuestionAnswering.from_pretrained("camembert-base") #?BertForQuestionAnswering?
 model=load_transformer(transfo,pth_file_path,device)
@@ -51,7 +51,7 @@ def get_prediction(context, question):
   return answer
 
 def normalize_text(s):
-  """Removing articles and punctuation, and standardizing whitespace are all typical text processing steps."""
+  """Removing articles and punctuation, and standardizing whitespace."""
   import string, re
   def remove_articles(text):
     regex = re.compile(r"\b(a|an|the)\b", re.UNICODE)

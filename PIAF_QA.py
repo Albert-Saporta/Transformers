@@ -52,7 +52,7 @@ model = RobertaForQuestionAnswering.from_pretrained("camembert-base") #?BertForQ
 optim = AdamW(model.parameters(), lr=5e-5)
 pth_file_name="piaf"
 #%% data Preprocessing
-data_path="C:/Users/alber/Bureau/Development/NLP_data/QA/PIAF/piaf_v12.json"
+data_path="C:/Users/alber/Bureau/Development/Data/NLP_data/QA/PIAF/piaf_v12.json"
 """
 with open(data_path, 'rb') as f:
   squad = json.load(f)
@@ -144,7 +144,7 @@ for epoch in range(n_epochs):
   
       loop.set_description(f'Epoch {epoch+1}/{n_epochs}')
       loop.set_postfix(loss=loss.item())
-      save_transformer(model,pth_file_name)
+      #save_transformer(model,pth_file_name)
       
     # ========================================
     #               Validation
